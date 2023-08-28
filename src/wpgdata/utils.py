@@ -1,4 +1,3 @@
-import pdfplumber
 import numpy as np
 import matplotlib.pyplot as plt
 from IPython.display import display
@@ -56,3 +55,9 @@ def loop_over_lanes(pagestr):
             trigger = True
 
     return data_array
+
+
+def get_headers(pagestr):
+
+    headers = []
+    return headers

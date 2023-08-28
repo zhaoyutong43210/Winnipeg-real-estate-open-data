@@ -3,7 +3,7 @@ import urllib
 import pathlib
 import logging
 import pdfplumber
-# from .utils import
+from .utils import get_headers
 
 logging.basicConfig(format=' %(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
@@ -28,7 +28,7 @@ class wpgdata_cfg():
         for key in file_dict:
             file_list = file_dict[key]
             for file in file_list:
-                self._download_file(file, save_sub_path = str(key))
+                self._download_file(file, save_sub_path=str(key))
 
     def full_salebooks_urls(self):
         '''Get a dict of list with key = year.'''
@@ -49,7 +49,6 @@ class wpgdata_cfg():
 
         This function is subject to change over time, depends on the winnipeg city website.
         '''
-
         extention = '.pdf'
         base_url = 'https://assessment.winnipeg.ca/AsmtTax/pdfs/SelfService/'
         key_word = 'sales_book_'
@@ -64,8 +63,8 @@ class wpgdata_cfg():
             file_path = urllib.parse.urljoin(yearurl, key_word + self.__typedict__[type] + str(region) + extention)
         elif type == 'condo':
             file_path = urllib.parse.urljoin(yearurl, key_word + self.__typedict__[type] + extention)
-        file_full_url = urllib.parse.urljoin(base_url, str(file_path))
-        return file_full_url
+        file_url = urllib.parse.urljoin(base_url, str(file_path))
+        return file_url
 
     def pdf_filename(self, year=2012, type='house', region=1):
         if type == 'house':
@@ -94,7 +93,7 @@ class wpgdata_cfg():
                 (filename, headers) = urllib.request.urlretrieve(file_url, fn)
                 logger.info(f'Successfully downloaded: {fn}.')
                 return filename, headers
-            except URLError as e:
+            except urllib.error.URLError as e:
                 raise RuntimeError("Failed to download '{}'. '{}'".format(file_url, e.reason))
 
     def _test_url(self, url):
@@ -105,12 +104,15 @@ class wpgdata_cfg():
         data_whole = []
         with pdfplumber.open(fpath) as pdf:
             total_pages = len(pdf.pages)
-            for n in np.arange(6, total_pages):
+            for n in np.arange(5, total_pages):
                 # print(n)
                 pagestr = pdf.pages[n].extract_text(layout=True, x_tolerance=1, x_density=3)
                 print(pagestr)
+
+                headers = get_headers(pagestr)
+                print(f'headers={headers}')
                 # sa = loop_over_lanes(pagestr)
-                data_whole.append([pagestr])
+                data_whole.append(pagestr)
         return data_whole
 
     def data_validator(self, type='PDF'):
