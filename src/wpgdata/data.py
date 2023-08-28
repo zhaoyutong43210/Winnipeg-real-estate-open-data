@@ -1,6 +1,9 @@
 import numpy as np
 import urllib
 import pathlib
+import logging
+
+logger = logging.getLogger('mylogger')
 
 class wpgdata_cfg():
     '''The configurator for Winnipeg Real Estate data.'''
@@ -69,11 +72,11 @@ class wpgdata_cfg():
         pathlib.Path(self.data_save_path / save_sub_path).mkdir(parents=True, exist_ok=True)
         
         if fn.exists():
-            print(f'The file {fn} already exists, skip downloading!')
+            logger.info(f'The file {fn} already exists, skip downloading!')
         else:
-
             try:
                 (filename, headers) = urllib.request.urlretrieve(file_url, fn)
+                logger.info(f'Successfully downloaded: {fn}.')
                 return filename, headers
             except URLError as e:
                 raise RuntimeError("Failed to download '{}'. '{}'".format(file_url, e.reason))
