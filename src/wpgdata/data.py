@@ -3,7 +3,10 @@ import urllib
 import pathlib
 import logging
 import pdfplumber
-from .utils import get_headers
+import re 
+import pandas as pd
+
+from .utils import loop_over_lanes, clean_str, flatten_list
 
 logging.basicConfig(format=' %(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
@@ -31,7 +34,7 @@ class wpgdata_cfg():
                 self._download_file(file, save_sub_path=str(key))
 
     def full_salebooks_urls(self):
-        '''Get a dict of list with key = year.'''
+        '''Get the urls of salebooks in format of dict of list with key = year.'''
         result = {}
         for year in self.__years__:
             url_list = []
@@ -41,6 +44,19 @@ class wpgdata_cfg():
             bookurl = self.url_gen(type='condo', year=year, region=region)
             url_list.append(bookurl)
             result.update({year: url_list})
+        return result
+    
+    def full_salebooks_paths(self):
+        '''Get a local path  of salebooks in format of list with key = year.'''
+        result = {}
+        for year in self.__years__:
+            path_list = []
+            for region in self.__regions__:
+                fn = self.pdf_filename(year=year, type='house', region=region)
+                path_list.append(fn)
+            fn = self.pdf_filename(type='condo', year=year, region=region)
+            path_list.append(fn)
+            result.update({year: path_list})
         return result
 
     def url_gen(self, type='house', year=2012, region=1):
@@ -100,20 +116,63 @@ class wpgdata_cfg():
         result = urllib.parse.urlparse(url)
         return result
 
-    def pdf_to_str(self, fpath):
-        data_whole = []
+    def pdf_to_datafram(self, fpath):
+        salebook_data = []
         with pdfplumber.open(fpath) as pdf:
             total_pages = len(pdf.pages)
             for n in np.arange(5, total_pages):
-                # print(n)
                 pagestr = pdf.pages[n].extract_text(layout=True, x_tolerance=1, x_density=3)
-                print(pagestr)
+                page_data = loop_over_lanes(pagestr, self._headerinfo)
+                salebook_data.append(page_data)
+        return  pd.DataFrame(flatten_list(salebook_data), columns = self._headers)
+    
+    def get_headers(self, fpath, page=6):
+        self._headers = None
+        with pdfplumber.open(fpath) as pdf:
+            pagestr = pdf.pages[page].extract_text(layout=True, x_tolerance=1, x_density=3)
+            self._headerinfo = self._search_headers(pagestr)
+            self._clean_header()
 
-                headers = get_headers(pagestr)
-                print(f'headers={headers}')
-                # sa = loop_over_lanes(pagestr)
-                data_whole.append(pagestr)
-        return data_whole
+        self._headers = []
+        for i in self._headerinfo:
+            self._headers.append(clean_str(i[2]))
+    
+    def _search_headers(self, pagestr):
+        headers = []
+        inds = []
+        inde = []
+        lanes = []
+        lines = pagestr.splitlines()
+        for lanestr in lines:
+            if 'Price' in lanestr  and 'Sale' in lanestr and 'this' not in lanestr:
+                head =  [n.lstrip() for n in lanestr.split('     ')] 
+                head = list(filter(None,head))
+                for h in head: 
+                    ind_start = [m.start() for m in re.finditer(h, lanestr)][0]
+                    ind_end = [m.end() for m in re.finditer(h, lanestr)][0]
+                    inds.append(ind_start)
+                    inde.append(ind_end)
+                for i in head:                    
+                    headers.append(i)
+                lanes.append(lanestr)
+
+        # post process
+        result = []
+        headers = headers
+        for n, item in enumerate(inds):
+            result.append([inds[n],inde[n],headers[n]])
+        return result
+    
+    def _clean_header(self):
+        # clean duplicated headers
+        start_i = []
+        end_i = []
+        for i in self._headerinfo:
+            start_i.append(i[0])
+            end_i.append(i[1])
+            if ((i[0] > np.array(start_i)) & (i[0] < np.array(end_i))).any():
+                self._headerinfo.remove(i)
+        self._headerinfo.sort()
 
     def data_validator(self, type='PDF'):
         '''
@@ -124,15 +183,11 @@ class wpgdata_cfg():
             False: dataset is not complete.
         '''
         result = True
-        if self.data_save_path.exists():
-            for year in self.__years__:
-                for region in self.__regions__:
-                    fn = self.pdf_filename(year=year, type='house', region=region)
-                    if not (self.data_save_path / fn).exists():
-                        logger.info(f'file {fn} missing!')
+        file_dict = self.full_salebooks_paths()
+        for key in file_dict:
+            file_list = file_dict[key]
+            for file in file_list:
+                if not (self.data_save_path / file).exists():
+                        logger.info(f'file {file} missing!')
                         result = False
-                fn = self.pdf_filename(year=year, type='condo', region=None)
-                if not (self.data_save_path / fn).exists():
-                    logger.info(f'file {fn} missing!')
-                    result = False
         return result
