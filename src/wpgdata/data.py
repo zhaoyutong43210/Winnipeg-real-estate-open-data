@@ -3,7 +3,7 @@ import urllib
 import pathlib
 import logging
 import pdfplumber
-import re 
+import re
 import pandas as pd
 
 from .utils import loop_over_lanes, clean_str, flatten_list
@@ -45,7 +45,7 @@ class wpgdata_cfg():
             url_list.append(bookurl)
             result.update({year: url_list})
         return result
-    
+
     def full_salebooks_paths(self, ext='.pdf'):
         '''Get a local path  of salebooks in format of list with key = year.'''
         result = {}
@@ -58,19 +58,28 @@ class wpgdata_cfg():
             path_list.append(fn)
             result.update({year: path_list})
         return result
-    
-    def full_salebooks_transfer(self):
+
+    def full_salebooks_transfer(self, ignore_exist=False):
         file_dict = self.full_salebooks_paths(ext='.csv')
-        for key in file_dict:
-            file_list = file_dict[key]
+        trigger_list = [
+                        [['Adresse', 'rôle'], ['Page', 'of']],
+                        [['Address', 'Roll'], ['Page', 'of']]
+                        ]
+
+        for year in file_dict:
+            file_list = file_dict[year]
             for file in file_list:
                 fn_csv = self.data_save_path / file
-                if fn_csv.exists():
+                if fn_csv.exists() and not ignore_exist:
                     logger.info(f'The file {fn_csv} already exists, skip transfering!')
                 else:
-                    fn_pdf = pathlib.Path(str(fn_csv).replace('.csv','.pdf'))
-                    print(fn_pdf)
-                    self.pdf_to_datafram(fpath=fn_pdf)
+                    fn_pdf = pathlib.Path(str(fn_csv).replace('.csv', '.pdf'))
+                    logger.debug(fn_pdf)
+                    self.get_headers(fpath=fn_pdf)
+                    if year < 2017:
+                        self.pdf_to_datafram(fpath=fn_pdf, trigger_str=trigger_list[0])
+                    else:
+                        self.pdf_to_datafram(fpath=fn_pdf, trigger_str=trigger_list[1])
                     logger.info(f'file {fn_pdf} successfully transfered!')
 
     def url_gen(self, type='house', year=2012, region=1):
@@ -130,20 +139,24 @@ class wpgdata_cfg():
         result = urllib.parse.urlparse(url)
         return result
 
-    def pdf_to_datafram(self, fpath, save=True):
+    def pdf_to_datafram(self, fpath, save=True, trigger_str=None):
         salebook_data = []
         with pdfplumber.open(fpath) as pdf:
             total_pages = len(pdf.pages)
             for n in np.arange(5, total_pages):
                 pagestr = pdf.pages[n].extract_text(layout=True, x_tolerance=1, x_density=3)
-                page_data = loop_over_lanes(pagestr, self._headerinfo)
+                page_data = loop_over_lanes(pagestr, self._headerinfo, trigger_str)
                 salebook_data.append(page_data)
-        df = pd.DataFrame(flatten_list(salebook_data), columns = self._headers)
+                # logger.debug(pagestr)
+        # try:
+        #     df = pd.DataFrame(flatten_list(salebook_data), columns=self._headers)
+        # except TypeError as e:
+        df = pd.DataFrame(flatten_list(salebook_data))
         if save:
-            path = str(fpath).replace('.pdf','.csv')
+            path = str(fpath).replace('.pdf', '.csv')
             df.to_csv(path)
-        return df 
-    
+        return df
+
     def get_headers(self, fpath, page=6):
         self._headers = None
         with pdfplumber.open(fpath) as pdf:
@@ -154,7 +167,7 @@ class wpgdata_cfg():
         self._headers = []
         for i in self._headerinfo:
             self._headers.append(clean_str(i[2]))
-    
+
     def _search_headers(self, pagestr):
         headers = []
         inds = []
@@ -162,27 +175,31 @@ class wpgdata_cfg():
         lanes = []
         lines = pagestr.splitlines()
         for lanestr in lines:
-            if 'Price' in lanestr  and 'Sale' in lanestr and 'this' not in lanestr:
-                head =  [n.lstrip() for n in lanestr.split('     ')] 
-                head = list(filter(None,head))
-                for h in head: 
+            if (('Price' in lanestr) and ('Sale' in lanestr) and ('this' not in lanestr)) or (('Time' in lanestr) and ('Adjust' in lanestr)):
+                head = [n.lstrip() for n in lanestr.split('     ')]
+                head = list(filter(None, head))
+                for h in head:
+                    # match_len = len([m for m in re.finditer(h, lanestr)])
+                    # if match_len == 1:
                     ind_start = [m.start() for m in re.finditer(h, lanestr)][0]
                     ind_end = [m.end() for m in re.finditer(h, lanestr)][0]
                     inds.append(ind_start)
                     inde.append(ind_end)
-                for i in head:                    
+                    # else:
+                    #     pass
+                for i in head:
                     headers.append(i)
                 lanes.append(lanestr)
 
         # post process
         result = []
         headers = headers
-        for n, item in enumerate(inds):
-            result.append([inds[n],inde[n],headers[n]])
+        for n, _ in enumerate(inds):
+            result.append([inds[n], inde[n], headers[n]])
         return result
-    
+
     def _clean_header(self):
-        # clean duplicated headers
+        # clean duplicated headers with different names (for bilingual pdf files)
         start_i = []
         end_i = []
         for i in self._headerinfo:
@@ -192,7 +209,15 @@ class wpgdata_cfg():
                 self._headerinfo.remove(i)
         self._headerinfo.sort()
 
-    def data_validator(self, type='PDF'):
+        # Remove duplicates with same name
+        new_list = []
+
+        for item in self._headerinfo:
+            if item not in new_list:
+                new_list.append(item)
+        self._headerinfo = new_list
+
+    def data_validator(self, ext='.pdf'):
         '''
         Check if raw data is downloaded or interpreted.
 
@@ -201,11 +226,11 @@ class wpgdata_cfg():
             False: dataset is not complete.
         '''
         result = True
-        file_dict = self.full_salebooks_paths()
+        file_dict = self.full_salebooks_paths(ext=ext)
         for key in file_dict:
             file_list = file_dict[key]
             for file in file_list:
                 if not (self.data_save_path / file).exists():
-                        logger.info(f'file {file} missing!')
-                        result = False
+                    logger.info(f'file {file} missing!')
+                    result = False
         return result
