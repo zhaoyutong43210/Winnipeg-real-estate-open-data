@@ -46,18 +46,32 @@ class wpgdata_cfg():
             result.update({year: url_list})
         return result
     
-    def full_salebooks_paths(self):
+    def full_salebooks_paths(self, ext='.pdf'):
         '''Get a local path  of salebooks in format of list with key = year.'''
         result = {}
         for year in self.__years__:
             path_list = []
             for region in self.__regions__:
-                fn = self.pdf_filename(year=year, type='house', region=region)
+                fn = self.data_filename(year=year, type='house', region=region, extension=ext)
                 path_list.append(fn)
-            fn = self.pdf_filename(type='condo', year=year, region=region)
+            fn = self.data_filename(type='condo', year=year, region=region, extension=ext)
             path_list.append(fn)
             result.update({year: path_list})
         return result
+    
+    def full_salebooks_transfer(self):
+        file_dict = self.full_salebooks_paths(ext='.csv')
+        for key in file_dict:
+            file_list = file_dict[key]
+            for file in file_list:
+                fn_csv = self.data_save_path / file
+                if fn_csv.exists():
+                    logger.info(f'The file {fn_csv} already exists, skip transfering!')
+                else:
+                    fn_pdf = pathlib.Path(str(fn_csv).replace('.csv','.pdf'))
+                    print(fn_pdf)
+                    self.pdf_to_datafram(fpath=fn_pdf)
+                    logger.info(f'file {fn_pdf} successfully transfered!')
 
     def url_gen(self, type='house', year=2012, region=1):
         '''
@@ -82,12 +96,12 @@ class wpgdata_cfg():
         file_url = urllib.parse.urljoin(base_url, str(file_path))
         return file_url
 
-    def pdf_filename(self, year=2012, type='house', region=1):
+    def data_filename(self, year=2012, type='house', region=1, extension='.pdf'):
         if type == 'house':
             regionstr = str(region)
         elif type == 'condo':
             regionstr = ''
-        file_name = 'sales_book_' + self.__typedict__[type] + regionstr + '.pdf'
+        file_name = 'sales_book_' + self.__typedict__[type] + regionstr + extension
         file_path = pathlib.Path(str(year)) / str(file_name)
         return file_path
 
@@ -116,7 +130,7 @@ class wpgdata_cfg():
         result = urllib.parse.urlparse(url)
         return result
 
-    def pdf_to_datafram(self, fpath):
+    def pdf_to_datafram(self, fpath, save=True):
         salebook_data = []
         with pdfplumber.open(fpath) as pdf:
             total_pages = len(pdf.pages)
@@ -124,7 +138,11 @@ class wpgdata_cfg():
                 pagestr = pdf.pages[n].extract_text(layout=True, x_tolerance=1, x_density=3)
                 page_data = loop_over_lanes(pagestr, self._headerinfo)
                 salebook_data.append(page_data)
-        return  pd.DataFrame(flatten_list(salebook_data), columns = self._headers)
+        df = pd.DataFrame(flatten_list(salebook_data), columns = self._headers)
+        if save:
+            path = str(fpath).replace('.pdf','.csv')
+            df.to_csv(path)
+        return df 
     
     def get_headers(self, fpath, page=6):
         self._headers = None
