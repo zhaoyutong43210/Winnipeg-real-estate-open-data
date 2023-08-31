@@ -39,9 +39,9 @@ class wpgdata_cfg():
         for year in self.__years__:
             url_list = []
             for region in self.__regions__:
-                bookurl = self.url_gen(type='house', year=year, region=region)
+                bookurl = self._url_gen(type='house', year=year, region=region)
                 url_list.append(bookurl)
-            bookurl = self.url_gen(type='condo', year=year, region=region)
+            bookurl = self._url_gen(type='condo', year=year, region=region)
             url_list.append(bookurl)
             result.update({year: url_list})
         return result
@@ -82,7 +82,7 @@ class wpgdata_cfg():
                         self.pdf_to_datafram(fpath=fn_pdf, trigger_str=trigger_list[1])
                     logger.info(f'file {fn_pdf} successfully transfered!')
 
-    def url_gen(self, type='house', year=2012, region=1):
+    def _url_gen(self, type='house', year=2012, region=1):
         '''
         Generate the full url of the required.
 
@@ -99,9 +99,11 @@ class wpgdata_cfg():
             yearurl = str(year) + '/'
 
         if type == 'house':
-            file_path = urllib.parse.urljoin(yearurl, key_word + self.__typedict__[type] + str(region) + extention)
+            file_path = urllib.parse.urljoin(yearurl,
+                                             key_word + self.__typedict__[type] + str(region) + extention)
         elif type == 'condo':
-            file_path = urllib.parse.urljoin(yearurl, key_word + self.__typedict__[type] + extention)
+            file_path = urllib.parse.urljoin(yearurl,
+                                             key_word + self.__typedict__[type] + extention)
         file_url = urllib.parse.urljoin(base_url, str(file_path))
         return file_url
 
@@ -116,7 +118,6 @@ class wpgdata_cfg():
 
     def _download_file(self, file_url, file_name=None, save_sub_path=None):
         '''Download a single file'''
-
         if file_name is None:
             file_name = file_url.rsplit('/', 1)[-1]
 
@@ -178,8 +179,10 @@ class wpgdata_cfg():
         lanes = []
         lines = pagestr.splitlines()
         for lanestr in lines:
-            if (('Price' in lanestr) and ('Sale' in lanestr) and ('this' not in lanestr)) or (('Time' in lanestr) and ('Adjust' in lanestr)):
-                head = [n.lstrip() for n in lanestr.split('     ')]
+            header_condition1 = (('Price' in lanestr) and ('Sale' in lanestr) and ('this' not in lanestr))
+            header_condition2 = (('Time' in lanestr) and ('Adjust' in lanestr))
+            if header_condition1 or header_condition2:
+                head = [head_str.lstrip() for head_str in lanestr.split('     ')]
                 head = list(filter(None, head))
                 for h in head:
                     # match_len = len([m for m in re.finditer(h, lanestr)])
@@ -224,22 +227,25 @@ class wpgdata_cfg():
         # for this wpg data set.
         if len(self._headerinfo) > 7:
             if self._headers[1] == 'Number':
-                combine01 = [self._headerinfo[0][0], self._headerinfo[1][1], self._headerinfo[0][2] + ' ' + self._headerinfo[1][2]]
+                combine01 = [self._headerinfo[0][0],
+                             self._headerinfo[1][1],
+                             self._headerinfo[0][2] + ' ' + self._headerinfo[1][2]]
                 self._headerinfo.remove(self._headerinfo[0])
                 self._headerinfo.remove(self._headerinfo[0])
                 self._headerinfo.insert(0, combine01)
                 logger.debug(combine01)
-            elif self._headers[-2] == 'Time Adjust' and self._headers[-1] =='Sale Price':
-                combine21 = [self._headerinfo[-2][0], self._headerinfo[-1][1], self._headerinfo[-2][2] + ' ' + self._headerinfo[-1][2]]
+            elif self._headers[-2] == 'Time Adjust' and self._headers[-1] == 'Sale Price':
+                combine21 = [self._headerinfo[-2][0],
+                             self._headerinfo[-1][1],
+                             self._headerinfo[-2][2] + ' ' + self._headerinfo[-1][2]]
                 self._headerinfo.remove(self._headerinfo[-1])
                 self._headerinfo.remove(self._headerinfo[-1])
                 self._headerinfo.append(combine21)
                 logger.debug(combine21)
-        
         self._headers = []
         for i in self._headerinfo:
             self._headers.append(clean_str(i[2]))
-        
+
     def data_validator(self, ext='.pdf'):
         '''
         Check if raw data is downloaded or interpreted.
@@ -257,3 +263,22 @@ class wpgdata_cfg():
                     logger.info(f'file {file} missing!')
                     result = False
         return result
+
+    def combine_all_csv(self):
+        file_dict = self.full_salebooks_paths(ext='.csv')
+        data_t = pd.DataFrame()
+        header_condo = ["No", "Unit", "Property Address", "Roll Number", "Sale Year", "Sale Month",
+                        "Sale Price", "Time Adjust Sale Price"]
+        header_house = ["No", "Property Address", "Roll Number", "Building Type", "Sale Year", "Sale Month",
+                        "Sale Price", "Time Adjust Sale Price"]
+
+        for key in file_dict:
+            file_list = file_dict[key]
+            for file in file_list:
+                data = pd.read_csv(self.data_save_path / file)
+                if 'condo' in str(file):
+                    data.columns = header_condo
+                else:
+                    data.columns = header_house
+                data_t = pd.concat([data_t, data])
+        data_t.to_csv(self.data_save_path / 'combined_data.csv')
