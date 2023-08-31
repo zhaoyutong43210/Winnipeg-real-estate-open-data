@@ -47,11 +47,11 @@ def get_row_data(lane_str, header_info):
         ind_break.append(i[0])
     ind_break.append(i[1])
     ind_break[0] = 0
-
+    ind_break[-1] = ind_break[-1] + 2
     #
     for n, i in enumerate(header_info):
         # loop over headers
-        data_str = lane_str[ind_break[n]:ind_break[n+1]-1].strip()
+        data_str = lane_str[ind_break[n]:ind_break[n+1]].strip()
         data_row.append(clean_str(data_str))
 
     if '' in data_row:

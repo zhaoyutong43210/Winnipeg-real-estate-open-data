@@ -149,9 +149,9 @@ class wpgdata_cfg():
                 salebook_data.append(page_data)
                 # logger.debug(pagestr)
         # try:
-        #     df = pd.DataFrame(flatten_list(salebook_data), columns=self._headers)
+        df = pd.DataFrame(flatten_list(salebook_data), columns=self._headers)
         # except TypeError as e:
-        df = pd.DataFrame(flatten_list(salebook_data))
+        # df = pd.DataFrame(flatten_list(salebook_data))
         if save:
             path = str(fpath).replace('.pdf', '.csv')
             df.to_csv(path)
@@ -167,6 +167,9 @@ class wpgdata_cfg():
         self._headers = []
         for i in self._headerinfo:
             self._headers.append(clean_str(i[2]))
+
+        if 'condo' in str(fpath):
+            self._condo_header()
 
     def _search_headers(self, pagestr):
         headers = []
@@ -200,13 +203,13 @@ class wpgdata_cfg():
 
     def _clean_header(self):
         # clean duplicated headers with different names (for bilingual pdf files)
-        start_i = []
-        end_i = []
+        start_i = [0]
+        end_i = [1]
         for i in self._headerinfo:
+            if ((i[0] >= np.array(start_i)) & (i[1] <= np.array(end_i))).any():
+                self._headerinfo.remove(i)
             start_i.append(i[0])
             end_i.append(i[1])
-            if ((i[0] > np.array(start_i)) & (i[0] < np.array(end_i))).any():
-                self._headerinfo.remove(i)
         self._headerinfo.sort()
 
         # Remove duplicates with same name
@@ -217,6 +220,26 @@ class wpgdata_cfg():
                 new_list.append(item)
         self._headerinfo = new_list
 
+    def _condo_header(self):
+        # for this wpg data set.
+        if len(self._headerinfo) > 7:
+            if self._headers[1] == 'Number':
+                combine01 = [self._headerinfo[0][0], self._headerinfo[1][1], self._headerinfo[0][2] + ' ' + self._headerinfo[1][2]]
+                self._headerinfo.remove(self._headerinfo[0])
+                self._headerinfo.remove(self._headerinfo[0])
+                self._headerinfo.insert(0, combine01)
+                logger.debug(combine01)
+            elif self._headers[-2] == 'Time Adjust' and self._headers[-1] =='Sale Price':
+                combine21 = [self._headerinfo[-2][0], self._headerinfo[-1][1], self._headerinfo[-2][2] + ' ' + self._headerinfo[-1][2]]
+                self._headerinfo.remove(self._headerinfo[-1])
+                self._headerinfo.remove(self._headerinfo[-1])
+                self._headerinfo.append(combine21)
+                logger.debug(combine21)
+        
+        self._headers = []
+        for i in self._headerinfo:
+            self._headers.append(clean_str(i[2]))
+        
     def data_validator(self, ext='.pdf'):
         '''
         Check if raw data is downloaded or interpreted.
