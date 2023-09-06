@@ -282,3 +282,7 @@ class wpgdata_cfg():
                     data.columns = header_house
                 data_t = pd.concat([data_t, data])
         data_t.to_csv(self.data_save_path / 'combined_data.csv')
+
+    def get_accessement_parcel(self):
+        url = 'https://data.winnipeg.ca/api/views/d4mq-wa44/rows.csv?accessType=DOWNLOAD'
+        self._download_file(url, file_name='Assessment_Parcels.csv', save_sub_path='access_parcel')
