@@ -1,8 +1,11 @@
 from dash import Dash, html, dcc, callback, Output, Input
 import plotly.express as px
 import pandas as pd
+import pathlib
 
-df = pd.read_csv('~/htmls/Winnipeg-real-estate-open-data/Winnipeg_real_estate_open_data/combined_data.csv')
+pwd = pathlib.Path().absolute().parent
+fpath = pwd.parent / 'Winnipeg_real_estate_open_data/combined_data.csv'
+df = pd.read_csv(fpath)
 
 # clean up the sale price
 df['Sale Price'] = df['Sale Price'].str.replace('$', '')

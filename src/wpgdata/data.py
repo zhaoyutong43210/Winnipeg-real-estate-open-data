@@ -155,7 +155,7 @@ class wpgdata_cfg():
         # df = pd.DataFrame(flatten_list(salebook_data))
         if save:
             path = str(fpath).replace('.pdf', '.csv')
-            df.to_csv(path)
+            df.to_csv(path, index=False)
         return df
 
     def get_headers(self, fpath, page=6):
@@ -267,9 +267,9 @@ class wpgdata_cfg():
     def combine_all_csv(self):
         file_dict = self.full_salebooks_paths(ext='.csv')
         data_t = pd.DataFrame()
-        header_condo = ["No", "Unit", "Property Address", "Roll Number", "Sale Year", "Sale Month",
+        header_condo = ["Unit", "Property Address", "Roll Number", "Sale Year", "Sale Month",
                         "Sale Price", "Time Adjust Sale Price"]
-        header_house = ["No", "Property Address", "Roll Number", "Building Type", "Sale Year", "Sale Month",
+        header_house = ["Property Address", "Roll Number", "Building Type", "Sale Year", "Sale Month",
                         "Sale Price", "Time Adjust Sale Price"]
 
         for key in file_dict:
@@ -281,8 +281,33 @@ class wpgdata_cfg():
                 else:
                     data.columns = header_house
                 data_t = pd.concat([data_t, data])
-        data_t.to_csv(self.data_save_path / 'combined_data.csv')
+        data_t = data_t.drop_duplicates(subset=["Sale Year", "Sale Month", "Roll Number", "Sale Price"])
+        data_t.to_csv(self.data_save_path / 'combined_data.csv', index=False)
 
     def get_accessement_parcel(self):
         url = 'https://data.winnipeg.ca/api/views/d4mq-wa44/rows.csv?accessType=DOWNLOAD'
         self._download_file(url, file_name='Assessment_Parcels.csv', save_sub_path='access_parcel')
+    
+    def clean_accessement_parcel(self):
+        fpath = self.data_save_path / 'access_parcel'
+        df = pd.read_csv(fpath / 'Assessment_Parcels.csv')
+        idx = [0,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,23,26,27,28,29,30,66]
+        dfn = df.iloc[:, idx]
+        dfn["Xcor"] = np.NaN
+        dfn["Ycor"] = np.NaN
+        # xind = df.columns.get_loc("Xcor")
+        # yind = df.columns.get_loc("Ycor")
+        for n in np.arange(dfn.shape[0]):
+            mystr = dfn['Geometry'][n]
+            x,y = geometry2xy(str(mystr))
+            dfn.loc[n, 'Xcor'] = x
+            dfn.loc[n, 'Ycor'] = y
+        data_final = dfn.drop(columns = ['Geometry', 'Assessment Date', 'Zoning'])
+        data_final.to_csv(fpath / 'Assessment_Parcels_cleaned.csv', index=False)
+
+
+def geometry2xy(mystr):
+    result = re.findall(r"-*\d+.\d+", mystr)
+    x = np.mean(np.array(result[0:-1:2]).astype(np.double)) # longtitude
+    y = np.mean(np.array(result[1:-1:2]).astype(np.double)) # latitude
+    return x,y
