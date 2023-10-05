@@ -288,23 +288,58 @@ class wpgdata_cfg():
         url = 'https://data.winnipeg.ca/api/views/d4mq-wa44/rows.csv?accessType=DOWNLOAD'
         self._download_file(url, file_name='Assessment_Parcels.csv', save_sub_path='access_parcel')
     
-    def clean_accessement_parcel(self):
+    def clean_accessement_parcel(self, method='clean'):
         fpath = self.data_save_path / 'access_parcel'
-        df = pd.read_csv(fpath / 'Assessment_Parcels.csv')
-        idx = [0,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,23,26,27,28,29,30,66]
+        df = pd.read_csv(fpath / 'Assessment_Parcels.csv', index_col=False)
+        idx = [0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30, 66]
         dfn = df.iloc[:, idx]
-        dfn["Xcor"] = np.NaN
-        dfn["Ycor"] = np.NaN
-        # xind = df.columns.get_loc("Xcor")
-        # yind = df.columns.get_loc("Ycor")
-        for n in np.arange(dfn.shape[0]):
-            mystr = dfn['Geometry'][n]
-            x,y = geometry2xy(str(mystr))
-            dfn.loc[n, 'Xcor'] = x
-            dfn.loc[n, 'Ycor'] = y
-        data_final = dfn.drop(columns = ['Geometry', 'Assessment Date', 'Zoning'])
-        data_final.to_csv(fpath / 'Assessment_Parcels_cleaned.csv', index=False)
-
+        if method == 'clean':
+            dfn["Xcor"] = np.NaN
+            dfn["Ycor"] = np.NaN
+            # xind = df.columns.get_loc("Xcor")
+            # yind = df.columns.get_loc("Ycor")
+            for n in np.arange(dfn.shape[0]):
+                mystr = dfn['Geometry'][n]
+                x,y = geometry2xy(str(mystr))
+                dfn.loc[n, 'Xcor'] = x
+                dfn.loc[n, 'Ycor'] = y
+                dfn.loc[n, 'Total Assessed Value'] = dfn.loc[n, 'Total Assessed Value']/1e4
+            data_final = dfn.drop(columns = ['Geometry', 'Assessment Date', 'Zoning', 'Total Proposed Assessment Value'])
+            data_final.to_csv(fpath / 'Assessment_Parcels_cleaned.csv', index=False)
+        elif method == 'simplify':
+            indx = 0
+            dfn = dfn.drop(columns = ['Assessment Date', 'Total Proposed Assessment Value'])
+            for n in np.arange(dfn.shape[0]):
+                mystr = dfn.loc[n, 'Property Use Code']
+                cond1 = 'APT' in mystr
+                cond2 = 'RES' in mystr
+                cond3 = not 'VACANT' in mystr
+                if (cond1 or cond2) and cond3:
+                    if indx:
+                        data_final = pd.concat([data_final, dfn.iloc[n,:].to_frame().T], ignore_index=True, axis=0)
+                    else:
+                        data_final =  pd.DataFrame(dfn.iloc[n,:])
+                        data_final = data_final.T
+                    indx += 1
+                    # if indx>1e3:
+                    #     break
+            data_final.to_csv(fpath / 'Assessment_Parcels_simplified.csv', index=False)
+        elif method == 'mini':
+            df = pd.read_csv(fpath / 'Assessment_Parcels_simplified.csv', index_col=False)
+            dfn = df.drop(columns = ['Neighbourhood Area', 'Market Region', 'Property Use Code', 'Property Influences','Zoning'])
+            # dfn.to_csv(fpath / 'Assessment_Parcels_simplified.csv', index_col=False)
+            dfn["Xcor"] = np.NaN
+            dfn["Ycor"] = np.NaN
+            for n in np.arange(dfn.shape[0]):
+                mystr = dfn['Geometry'][n]
+                x,y = geometry2xy(str(mystr))
+                dfn.loc[n, 'Xcor'] = x
+                dfn.loc[n, 'Ycor'] = y
+                # dfn.loc[n, 'Total Assessed Value'] = dfn.loc[n, 'Total Assessed Value']/1e4
+            data_final = dfn.drop(columns = ['Geometry'])
+            data_final.to_csv(fpath / 'Assessment_Parcels_cleaned.csv', index=False)
+        else:
+            raise ValueError('The method has to be in either clean or simplify!')
 
 def geometry2xy(mystr):
     result = re.findall(r"-*\d+.\d+", mystr)
