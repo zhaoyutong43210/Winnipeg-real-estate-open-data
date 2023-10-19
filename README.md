@@ -6,9 +6,17 @@ To visualize the open data provided by the government. An insight into the real 
 The data analysis starts with Winnipeg but is not limited to this city, there are more cities to be considered. 
 In the near future, I will try to take Calgary and Montreal into this project. 
 
+### Installation
+
+git clone to your local, change the directory to this project, and run the following:
+
+```
+pip install .
+```
+
 ### 2023 Interactive assessment map
 
-[Click here to View](https://zhaoyutong43210.github.io/Winnipeg-real-estate-open-data/doc/tutorial/index.html)
+[Click here to View](https://zhaoyutong43210.github.io/openWPG/doc/tutorial/index.html)
 
 ### 2010-2018 salebook on map
 
