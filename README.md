@@ -4,7 +4,7 @@
 
 To visualize the open data provided by the government. An insight into the real estate market for everyone. 
 The data analysis starts with Winnipeg but is not limited to this city, there are more cities to be considered. 
-In the near future, I will try to take Calgary and Montreal into this project. 
+In the future, I will try to take Calgary, Montreal or Ottawa into this project. 
 
 ### Installation
 
@@ -14,6 +14,9 @@ git clone to your local, change the directory to this project, and run the follo
 pip install .
 ```
 
+you should now have installed the `wpgdata` package in your environment. 
+### Quick start
+
 ### 2023 Interactive assessment map
 
 [Click here to View](https://zhaoyutong43210.github.io/openWPG/doc/tutorial/index.html)
@@ -22,13 +25,20 @@ pip install .
 
 [Under construction]()
 
+### Open data of Public sector (University of Manitoba)
+
+[UM public sector statistical analysis](https://github.com/zhaoyutong43210/openWPG/blob/main/doc/tutorial/UM_Statistics.ipynb)
+
+The compensation of the staff with over 75000 CAD annually has to be released to the public by law. 
+In this example, we take a sample PDF file released by the University of Manitoba to take a glance. 
+
 ### start to contribute
 
-you can start to create an issue, or a pull request if you have previous experience in a development environment.
+If you have previous experience in a development environment, you can start by creating an issue or a pull request.
 
 ### Contact
 
-Name: Yutong Zhao
-E-mail: zhaoyutong43210@gmail.com
-WeChat: YutongZhao_
+Name: Yutong Zhao |
+E-mail: zhaoyutong43210@gmail.com |
+WeChat: YutongZhao_ |
 
